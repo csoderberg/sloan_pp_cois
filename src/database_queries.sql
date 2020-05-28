@@ -43,7 +43,12 @@ SELECT COUNT(pp_timing.id) AS num_pps, action, timeframe
 
 
 /* count of the has_coi status of non-finished preprints*/
-SELECT COUNT(id) as num_pp, has_coi, 
-					FROM osf_preprint
-					WHERE osf_preprint.created >= '2020-04-21 20:37:53.449468+00:00' AND osf_preprint.created <= '2020-05-26 20:37:53.449468+00:00' AND 
-							provider_id != 7 AND machine_state = 'initial'
+SELECT COUNT(id) as num_pp, has_coi
+	FROM osf_preprint
+	WHERE osf_preprint.created >= '2020-04-21 20:37:53.449468+00:00' AND osf_preprint.created <= '2020-05-26 20:37:53.449468+00:00' AND 
+			provider_id != 7 AND machine_state = 'initial'
+	GROUP BY has_coi
+
+
+
+
