@@ -38,5 +38,5 @@ SELECT COUNT(pp_timing.id) AS num_pps, action, timeframe
 				FROM osf_preprintlog
 				WHERE created >= '2020-03-17 20:37:53.449468+00:00'
 				GROUP BY preprint_id, action) AS pp_actions
-	ON pp_timing.id = pp.preprint_id
+	ON pp_timing.id = pp_actions.preprint_id
 	GROUP BY action, timeframe
