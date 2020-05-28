@@ -18,4 +18,10 @@ complete_pps_data %>%
   group_by(provider) %>%
   summarize(perc_diff = perc_unfinished[timeframe == 'during_exp'] - perc_unfinished[timeframe == 'pre_exp'], raw_diff = unfinished[timeframe == 'during_exp'] - unfinished[timeframe == 'pre_exp'])
 
-
+# difference in number of submissions to services before/after start of experiment
+complete_pps_data %>%
+  group_by(provider, timeframe) %>%
+  summarize(submissions = sum(num_pps)) %>%
+  pivot_wider(names_from = timeframe, values_from = submissions) %>%
+  mutate(during_pre_diff = during_exp - pre_exp)
+  
