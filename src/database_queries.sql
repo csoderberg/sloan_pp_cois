@@ -51,10 +51,15 @@ SELECT COUNT(id) as num_pp, has_coi
 
 
 /* query to pull preprints published during the timewindow that have COI statements (some have been publisehd during the timeframe but not have COIs if they entered pre-mod before the time window) */
-SELECT *
+SELECT osf_guid._id AS guid, has_coi, osf_abstractprovider._id AS pp_provider, osf_preprint.id AS pp_num, date_published, log_date, params, 
 	FROM osf_preprint
+	LEFT JOIN osf_guid
+	ON osf_preprint.id = osf_guid.object_id AND content_type_id = 47
+	LEFT JOIN osf_abstractprovider
+	ON osf_preprint.provider_id = osf_abstractprovider.id
+	LEFT JOIN (SELECT created AS log_date, params, preprint_id
+					FROM osf_preprintlog
+					WHERE action = 'has_coi_updated') AS coi_logs
+	ON osf_preprint.id = coi_logs.preprint_id
 	WHERE osf_preprint.created >= '2020-04-21 20:37:53.449468+00:00' AND osf_preprint.created <= '2020-05-26 20:37:53.449468+00:00' AND 
-		provider_id != 7 AND (machine_state = 'pending' OR machine_state = 'accepted') AND (spam_status IS NULL OR spam_status != 2)
-
-
-
+		provider_id != 7 AND (spam_status IS NULL OR spam_status != 2) AND has_coi IS NOT NULL AND ever_public IS TRUE AND is_published IS TRUE
