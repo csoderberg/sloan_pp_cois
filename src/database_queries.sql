@@ -51,8 +51,8 @@ SELECT COUNT(id) as num_pp, has_coi
 
 
 /* query to pull preprints published during the timewindow that have COI statements (some have been publisehd during the timeframe but not have COIs if they entered pre-mod before the time window) */
-SELECT osf_guid._id AS guid, has_coi, osf_abstractprovider._id AS pp_provider, osf_preprint.id AS pp_num, machine_state, date_withdrawn,
-		date_published, log_date, params ->> 'value' AS log_coi_value
+SELECT osf_guid._id AS guid, has_coi, conflict_of_interest_statement, osf_abstractprovider._id AS pp_provider, osf_preprint.id AS pp_num, machine_state, date_withdrawn,
+		date_published, log_date, params ->> 'value' AS log_coi_value, article_doi
 	FROM osf_preprint
 	LEFT JOIN osf_guid
 	ON osf_preprint.id = osf_guid.object_id AND content_type_id = 47
