@@ -35,3 +35,118 @@ m1 <- brm(download ~ pp_published + random_coi_shown + random_has_coi + random_c
           cores = 4,
           seed = 1)
 
+# took over 24hrs to run and 'Error: vector memory exhausted (limit reached?)' when it actually tried to finish
+
+# what is the distribution of number of pps viewed?
+overall_data_blinded %>%
+  group_by(participant_id) %>%
+  tally() %>%
+  ungroup() %>%
+  rename(preprints_viewed = 'n') %>%
+  group_by(preprints_viewed) %>%
+  tally() %>%
+  mutate(perc_sample = round(100 * n/sum(n),2))
+
+# create dataset of only single pp viewers
+single_viewers_blinded <- overall_data_blinded %>%
+  group_by(participant_id) %>%
+  mutate(pp_viewed = n()) %>%
+  filter(pp_viewed == 1) %>%
+  ungroup() %>%
+  mutate(download_scaled = cum_downloads/100,
+         download_scaled_mean = mean(download_scaled),
+         download_centered = download_scaled - download_scaled_mean) %>%
+  mutate(guid = as.factor(guid),
+         pp_provider = as.factor(pp_provider))
+
+
+# model without any random terms
+m0a <- brm(download ~ pp_published + download_centered + random_coi_shown + random_has_coi + random_coi_shown * random_has_coi,
+           data = single_viewers_blinded,
+           family = bernoulli(link = 'logit'),
+           warmup = 500,
+           iter = 2000,
+           chains = 2,
+           inits = '0',
+           cores = 4,
+           seed = 5)
+
+m0a_waic <- WAIC(m0a)
+
+# model without random participant intercept, only using those who viewed only 1 pp & random intercept for guid
+m1a <- brm(download ~ pp_published + download_centered + random_coi_shown + random_has_coi + random_coi_shown * random_has_coi + (1|guid),
+           data = single_viewers_blinded,
+           family = bernoulli(link = 'logit'),
+           warmup = 500,
+           iter = 2000,
+           chains = 2,
+           inits = '0',
+           cores = 4,
+           seed = 10,
+           control=list(max_treedepth=13))
+
+summary(m1a)
+plot(m1a)
+pairs(m1a)
+m1a_waic <- WAIC(m1a)
+pp_check(m1a)
+pp_check(m1a, type = "stat", stat = 'median')
+
+# include provider level intercepts (with guid nested within provider)
+m2a <- brm(download ~ pp_published + download_centered + random_coi_shown + random_has_coi + random_coi_shown * random_has_coi + (1|pp_provider) + (1|guid),
+           family = bernoulli(link = 'logit'),
+           data = single_viewers_blinded,
+           warmup = 1500,
+           iter = 3000,
+           chains = 2,
+           inits = '0',
+           cores = 4,
+           seed = 20,
+           control=list(max_treedepth=13))
+
+summary(m2a)
+plot(m2a)
+pairs(m2a)
+m2a_waic <- WAIC(m2a)
+pp_check(m2a)
+pp_check(m2a, type = "stat", stat = 'median')
+
+# include guid level random close for affect of manipulation
+m3a <- brm(download ~ pp_published + download_centered + random_coi_shown + random_has_coi + random_coi_shown * random_has_coi + 
+             (1 | pp_provider) + (random_coi_shown | guid),
+           data = single_viewers_blinded,
+           family = bernoulli(link = 'logit'),
+           warmup = 1500,
+           iter = 3000,
+           chains = 2,
+           inits = '0',
+           cores = 4,
+           seed = 30)
+
+summary(m3a)
+plot(m3a)
+pp_check(m3a)
+m3a_waic <- WAIC(m3a)
+
+
+# add in random slopes for interaction across providers
+m4a <- brm(download ~ pp_published + download_centered + random_coi_shown + random_has_coi + random_coi_shown * random_has_coi + 
+             (random_has_coi*random_coi_shown | pp_provider) + (random_coi_shown | guid),
+           data = single_viewers_blinded,
+           family = bernoulli(link = 'logit'),
+           warmup = 1500,
+           iter = 3000,
+           chains = 2,
+           inits = '0',
+           cores = 4,
+           seed = 40,
+           control=list(max_treedepth=13))
+
+summary(m4a)
+plot(m4a)
+pairs(m4a)
+pp_check(m4a)
+m4a_waic <- WAIC(m4a)
+
+
+
