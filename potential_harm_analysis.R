@@ -11,6 +11,8 @@ osf_retrieve_node('y87ah') %>%
 complete_pps_data <- read_csv(here::here('counts_completed_pps.csv'))
 pp_action_data <- read_csv(here::here('counts_workflowsteps_unfinished_pps.csv'))
 
+complete_pps_data_2019 <- read_csv(here::here('counts_completed_pps_2019.csv'))
+
 # difference in percent of pps, by service, that were unfinished during - pre experiment
 complete_pps_data %>%
   group_by(provider, timeframe) %>%
@@ -23,5 +25,13 @@ complete_pps_data %>%
   group_by(provider, timeframe) %>%
   summarize(submissions = sum(num_pps)) %>%
   pivot_wider(names_from = timeframe, values_from = submissions) %>%
-  mutate(during_pre_diff = during_exp - pre_exp)
+  mutate(during_pre_diff = during_exp - pre_exp) %>%
+  left_join(complete_pps_data_2019 %>%
+              group_by(provider, timeframe) %>%
+              summarize(submissions = sum(num_pps)) %>%
+              pivot_wider(names_from = timeframe, values_from = submissions) %>%
+              mutate(during_pre_diff_2019 = during_exp - pre_exp), by = 'provider') %>%
+  rename(during_pre_diff_2020 = during_pre_diff) %>%
+  select(provider, during_pre_diff_2020, during_pre_diff_2019) %>%
+  write_csv('across_years.csv')
   

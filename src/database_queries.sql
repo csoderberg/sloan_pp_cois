@@ -51,16 +51,61 @@ SELECT COUNT(id) as num_pp, has_coi
 
 
 /* query to pull preprints published during the timewindow that have COI statements (some have been publisehd during the timeframe but not have COIs if they entered pre-mod before the time window) */
-SELECT osf_guid._id AS guid, has_coi, conflict_of_interest_statement, osf_abstractprovider._id AS pp_provider, osf_preprint.id AS pp_num, machine_state, date_withdrawn,
-		date_published, log_date, params ->> 'value' AS log_coi_value, article_doi
+WITH assertion_changes AS (SELECT osf_preprintlog.created AS log_date, 
+								action AS log_action, 
+								params, 
+								params ->> 'value' AS log_value, 
+								osf_preprintlog.preprint_id,
+								num_coi_updates,
+								date_published
+							FROM osf_preprintlog
+							LEFT JOIN (SELECT COUNT(*) AS num_coi_updates, preprint_id
+											FROM osf_preprintlog
+											WHERE action = 'has_coi_updated' AND osf_preprintlog.created >= '2020-04-21 20:37:53.449468+00:00' 
+											GROUP BY preprint_id) AS coi_updates
+							ON osf_preprintlog.preprint_id = coi_updates.preprint_id
+							LEFT JOIN osf_preprint
+							ON osf_preprintlog.preprint_id = osf_preprint.id
+							WHERE action = 'has_coi_updated' AND 
+								osf_preprintlog.created >= '2020-04-21 20:37:53.449468+00:00' AND 
+								num_coi_updates > 1 AND 
+								date_published >= '2020-04-21 20:37:53.449468+00:00' AND
+								date_published <= '2020-05-11 20:37:53.449468+00:00')
+
+SELECT osf_guid._id AS guid, 
+		osf_abstractprovider._id AS pp_provider, 
+		osf_preprint.id AS pp_num, 
+		machine_state, 
+		date_withdrawn,
+		osf_preprint.date_published, 
+		osf_preprint.modified,
+		log_date, 
+		log_action, 
+		log_value, 
+		has_coi, 
+		article_doi
 	FROM osf_preprint
 	LEFT JOIN osf_guid
 	ON osf_preprint.id = osf_guid.object_id AND content_type_id = 47
 	LEFT JOIN osf_abstractprovider
 	ON osf_preprint.provider_id = osf_abstractprovider.id
-	LEFT JOIN (SELECT created AS log_date, params, preprint_id
-					FROM osf_preprintlog
-					WHERE action = 'has_coi_updated') AS coi_logs
-	ON osf_preprint.id = coi_logs.preprint_id
-	WHERE osf_preprint.created >= '2020-04-21 20:37:53.449468+00:00' AND osf_preprint.created <= '2020-05-11 20:37:53.449468+00:00' AND 
+	LEFT JOIN assertion_changes
+	ON osf_preprint.id = assertion_changes.preprint_id
+	WHERE osf_preprint.date_published >= '2020-04-21 20:37:53.449468+00:00' AND osf_preprint.date_published <= '2020-05-11 20:37:53.449468+00:00' AND 
 		provider_id != 7 AND (spam_status IS NULL OR spam_status != 2) AND has_coi IS NOT NULL AND ever_public IS TRUE AND is_published IS TRUE
+
+
+/* get contributors for all pps with non-NA data statements published during the time period*/
+SELECT _id AS preprint_guid, user_guid
+	FROM osf_preprint
+	LEFT JOIN osf_guid
+	ON osf_preprint.id = osf_guid.object_id AND content_type_id = 47
+	LEFT JOIN (SELECT preprint_id, user_id, _id AS user_guid
+				FROM osf_preprintcontributor
+				LEFT JOIN osf_guid
+				ON osf_guid.object_id = osf_preprintcontributor.user_id AND content_type_id = 18) AS constributors
+	ON osf_preprint.id = constributors.preprint_id
+	WHERE osf_preprint.date_published >= '2020-04-21 20:37:53.449468+00:00' AND 
+			osf_preprint.date_published <= '2020-05-11 20:37:53.449468+00:00' AND 
+			(spam_status IS NULL OR spam_status != 2) AND 
+			provider_id != 7

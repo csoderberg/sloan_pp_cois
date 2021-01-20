@@ -2,6 +2,7 @@
 library(tidyverse)
 library(brms)
 library(ggeffects)
+library(here)
 
 #### analysis on blinded data ####
 
@@ -149,4 +150,109 @@ pp_check(m4a)
 m4a_waic <- WAIC(m4a)
 
 
+#### analyses on unblinded data ####
 
+#load unblinded dataset
+overall_data <- read_csv(here::here('overall_data.csv'),
+                                 col_types = cols(date_withdrawn = col_datetime())) %>%
+  mutate(has_coi = as.factor(has_coi),
+         has_coi = fct_relevel(has_coi, c('FALSE', 'TRUE')),
+         coi_shown = as.factor(coi_shown),
+         coi_shown = fct_relevel(coi_shown, c('FALSE', 'TRUE'))) %>%
+  mutate(pp_published = case_when(is.na(article_doi) ~ 'no',
+                                  !is.na(article_doi) ~ 'yes'),
+         pp_published = as.factor(pp_published),
+         pp_published = fct_relevel(pp_published, c('no', 'yes')))
+
+# create dataset of just those who viewed preprint
+single_viewers <- overall_data %>%
+  group_by(participant_id) %>%
+  mutate(pp_viewed = n()) %>%
+  filter(pp_viewed == 1) %>%
+  ungroup() %>%
+  mutate(download_scaled = cum_downloads/100,
+         download_scaled_mean = mean(download_scaled),
+         download_centered = download_scaled - download_scaled_mean) %>%
+  mutate(guid = as.factor(guid),
+         pp_provider = as.factor(pp_provider))
+
+# initial model wiht only random intercept for pp
+m1 <- brm(download ~ pp_published + download_centered + coi_shown + has_coi + coi_shown * has_coi + (1|guid),
+           data = single_viewers,
+           family = bernoulli(link = 'logit'),
+           warmup = 500,
+           iter = 2000,
+           chains = 2,
+           inits = '0',
+           cores = 4,
+           seed = 100)
+
+summary(m1)
+plot(m1)
+pairs(m1)
+m1_waic <- WAIC(m1)
+pp_check(m1)
+pp_check(m1, type = "stat", stat = 'median')
+m1_predict <- ggpredict(m1, terms = c('coi_shown', 'has_coi'))
+plot(m1_predict)
+
+# model that adds random intercept for pp_provider
+m2 <- brm(download ~ pp_published + download_centered + coi_shown + has_coi + coi_shown * has_coi + (1|guid) + (1|pp_provider),
+          data = single_viewers,
+          family = bernoulli(link = 'logit'),
+          warmup = 1500,
+          iter = 3000,
+          chains = 2,
+          inits = '0',
+          cores = 4,
+          seed = 200)
+
+summary(m2)
+plot(m2)
+pairs(m2)
+m2_waic <- WAIC(m2)
+pp_check(m2)
+pp_check(m2, type = "stat", stat = 'median')
+m2_predict <- ggpredict(m2, terms = c('coi_shown', 'has_coi'))
+plot(m2_predict)
+
+
+# model that adds random slope for coi_shown to guid
+m3 <- brm(download ~ pp_published + download_centered + coi_shown + has_coi + coi_shown * has_coi + (coi_shown|guid) + (1|pp_provider),
+          data = single_viewers,
+          family = bernoulli(link = 'logit'),
+          warmup = 1500,
+          iter = 3000,
+          chains = 2,
+          inits = '0',
+          cores = 4,
+          seed = 300,
+          control=list(max_treedepth=11))
+
+summary(m3)
+plot(m3)
+pairs(m3)
+m3_waic <- WAIC(m3)
+pp_check(m3)
+pp_check(m3, type = "stat", stat = 'median')
+m3_predict <- ggpredict(m3, terms = c('coi_shown', 'has_coi'))
+plot(m3_predict)
+
+# model that adds random slope for coi_shown*has_coi interaction to pp_provider
+m4 <- brm(download ~ pp_published + download_centered + coi_shown + has_coi + coi_shown * has_coi + (coi_shown|guid) + (coi_shown * has_coi|pp_provider),
+          data = single_viewers,
+          family = bernoulli(link = 'logit'),
+          warmup = 1500,
+          iter = 3000,
+          chains = 2,
+          inits = '0',
+          cores = 4,
+          seed = 401,
+          control=list(max_treedepth=12))
+
+summary(m4)
+plot(m4)
+pairs(m4)
+m3_waic <- WAIC(m4)
+pp_check(m4)
+pp_check(m4, type = "stat", stat = 'median')
